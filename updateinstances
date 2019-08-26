@@ -1,0 +1,200 @@
+def COLOR_MAP = ['SUCCESS': 'good', 'FAILURE': 'danger', 'UNSTABLE': 'danger', 'ABORTED': 'danger']
+def getBuildUser() {
+    return currentBuild.rawBuild.getCause(Cause.UserIdCause).getUserId()
+}
+pipeline {
+environment {
+    
+        ARTIFACTORY_USERNAME = credentials("artifactory-username")
+        ARTIFACTORY_PASSWORD = credentials("artifactory-password")
+        
+        
+        companyname_dev_pem = credentials("companyname-development.pem")
+        companyname_dev_new_pem = credentials("companyname-dev-new.pem")
+        AWS_ACCESS_KEY = credentials("companyname_dev_aws_access_key")
+        AWS_SECRET_KEY = credentials("companyname_dev_aws_secret_key")
+        AWS_OWNER_ID = credentials("companyname_dev_aws_owner_id")
+        AWS_ACCESS_KEY2 = credentials("main_aws_access_key")
+        AWS_SECRET_KEY2 = credentials("main_aws_secret_key")
+        AWS_OWNER_ID2 = credentials("main_aws_owner_id")
+        doError = '1'
+        BUILD_USER = ''
+    }
+    agent {
+         node {
+        label 'deploy'
+    }
+        }
+         parameters { choice(name: 'environment', choices: ['dev01', 'dev02', 'dev03', 'dev04', 'dev05', 'dev06', 'dev07', 'dev08'], description: 'Run Inspector')
+                      choice(name: 'brand', choices: ['wow', 'ls'], description: 'brand')
+     }
+    stages {
+     stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Generate Credentials') {
+            steps {
+                sh'''
+                rm -rf /root/.aws
+                mkdir /home/jenkins/.aws
+                if [ "$environment" = "dev01" ]; then
+                echo "Using Credentials Set 1"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                if [ "$environment" = "dev02" ]; then
+                echo "Using Credentials Set 2"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                if [ "$environment" = "dev03" ]; then
+                echo "Using Credentials Set 3"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                if [ "$environment" = "dev04" ]; then
+                echo "Using Credentials Set 4"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                if [ "$environment" = "dev05" ]; then
+                echo "Using Credentials Set 5"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                if [ "$environment" = "dev06" ]; then
+                echo "Using Credentials Set 6"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY2}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY2}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                if [ "$environment" = "dev07" ]; then
+                echo "Using Credentials Set 7"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY2}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY2}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                if [ "$environment" = "dev08" ]; then
+                echo "Using Credentials Set 8"
+                ACCESSKEY="aws configure set aws_access_key_id ${AWS_ACCESS_KEY2}"
+                SCRETKEY="aws configure set aws_secret_access_key ${AWS_SECRET_KEY2}"
+                DEFAULT='echo "[default]" >> /home/jenkins/.aws/credentials'
+                REGION='aws configure set region eu-west-1'
+                fi
+                $ACCESSKEY
+                $SCRETKEY
+                $DEFAULT
+                $REGION
+                echo $ACCESSKEY >> ACCESSKEY.txt
+                echo $SCRETKEY >> SCRETKEY.txt
+                echo $DEFAULT >> DEAFULT.txt
+                '''
+            }
+        }
+     stage('GET BOXS') {
+            steps {
+                sh 'cat $wowcher_dev_pem > /home/jenkins/.ssh/wowcher-development.pem'
+                sh 'chmod 600 /home/jenkins/.ssh/wowcher-development.pem'
+                sh '''
+                    ###############################################################################
+                Nap()
+                {
+                NAP=$((1 + RANDOM % 50))
+                echo "Sleeping for ${NAP} second(s)"
+                sleep ${NAP}
+                echo "Resuming..."
+                }
+                   ###############################################################################
+                 
+                   echo "Environment: '${environment}'"
+
+                   rm -f ~/.ssh/known_hosts
+                   # get instance ids
+                   TMPFILE="instances.list"
+                   # loop while we get an error
+                   RES=1
+                   while [ $RES -ne 0 ]
+                   do
+                   aws ec2 describe-instances --filters 'Name=tag:Name,Values='${brand}'-'${environment}'-*' 'Name=instance-state-name,Values=running' --query 'Reservations[].Instances[].[InstanceId, Tags[?Key==`Name`].Value | [0],PrivateIpAddress ]' --output text > ${TMPFILE}  
+                   RES=$?
+                   # if aws gave an error (like RateLimitExceeded) then sleep and go again
+                   if [ ${RES} -ne 0 ]; then Nap; fi
+                   done
+                   echo "The list of servers is:"
+                   cat ${TMPFILE}
+                   while read line
+                   do
+                   IP=$(echo $line | awk '{print $3}')
+                   echo "Checking status of puppet agent on ${NAME} (${IP}) (${ID})"
+                   done < ${TMPFILE}
+                   echo "Stage Completed"
+                   '''
+            }
+        }
+         stage('Run Boxes Updates') {
+            steps {
+                sh '''
+                ###############################################################################
+                Nap()
+                {
+                NAP=$((1 + RANDOM % 50))
+                echo "Sleeping for ${NAP} second(s)"
+                sleep ${NAP}
+                echo "Resuming..."
+                    
+                }
+                ###############################################################################
+                TMPFILE="instances.list"
+                echo "Starting Deployment"
+                while read line
+                do
+                ID=$(echo $line | awk '{print $1}')
+                NAME=$(echo $line | awk '{print $2}')
+                IP=$(echo $line | awk '{print $3}')
+                echo "Finding the ELB for ${NAME} (${IP}) (${ID})"
+                RES=1
+                while [ $RES -ne 0 ]
+                do
+                if [ $environment == "dev02" ] || [ $environment == "dev03" ] || [ $environment == "dev05" ]
+                ssh -n -o StrictHostKeyChecking=no -i /home/jenkins/.ssh/companyname-dev-new.pem ec2-user@$IP "sudo ls /opt/puppetlabs/puppet/cache/state/agent_catalog_run.lock" ; then
+                Nap;
+                else
+                set +e
+                ssh -n -o StrictHostKeyChecking=no -i /home/jenkins/.ssh/companyname-dev-new.pem ec2-user@$IP "sudo yum update -y && sudo yum upgrade -y"
+                ssh -n -o StrictHostKeyChecking=no -i /home/jenkins/.ssh/companyname-dev-new.pem ec2-user@$IP "sudo reboot"
+                PUPPET_RESULT=$?
+                RES=0
+                set -e
+                fi
+                else
+                if ssh -n -o StrictHostKeyChecking=no -i /home/jenkins/.ssh/compan-development.pem ec2-user@$IP "sudo ls /opt/puppetlabs/puppet/cache/state/agent_catalog_run.lock" ; then
+                Nap;
+                else
+                set +e
+                ssh -n -o StrictHostKeyChecking=no -i /home/jenkins/.ssh/companyname-development.pem ec2-user@$IP "sudo yum update -y && sudo yum upgrade -y"
+                ssh -n -o StrictHostKeyChecking=no -i /home/jenkins/.ssh/companyname-development.pem ec2-user@$IP "sudo reboot"
+                PUPPET_RESULT=$?
+                RES=0
+                set -e
+                fi
+                done
+                done < ${TMPFILE}
+                '''
+            }
+        }
+    }
+}
