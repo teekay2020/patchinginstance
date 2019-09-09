@@ -107,8 +107,8 @@ environment {
         }
      stage('GET BOXS') {
             steps {
-                sh 'cat $wowcher_dev_pem > /home/jenkins/.ssh/wowcher-development.pem'
-                sh 'chmod 600 /home/jenkins/.ssh/wowcher-development.pem'
+                sh 'cat $_dev_pem > /home/jenkins/.ssh/companyname-development.pem'
+                sh 'chmod 600 /home/jenkins/.ssh/companyname-development.pem'
                 sh '''
                     ###############################################################################
                 Nap()
